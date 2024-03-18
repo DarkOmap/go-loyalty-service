@@ -6,7 +6,9 @@ import (
 )
 
 type Parameters struct {
-	RunAddr, DataBaseURI, AccuralSystemAddr string
+	RunAddr           string
+	DataBaseURI       string
+	AccuralSystemAddr string
 }
 
 func ParseFlags() (p Parameters) {
