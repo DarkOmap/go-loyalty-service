@@ -3,9 +3,11 @@ module github.com/Tomap-Tomap/go-loyalty-service
 go 1.22
 
 require (
+	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/jackc/pgerrcode v0.0.0-20240316143900-6e2875d9b438
 	github.com/jackc/pgx/v5 v5.5.5
 	go.uber.org/zap v1.27.0
+	golang.org/x/sync v0.6.0
 )
 
 require (

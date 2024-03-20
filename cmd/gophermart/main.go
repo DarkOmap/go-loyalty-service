@@ -10,8 +10,10 @@ import (
 	"github.com/Tomap-Tomap/go-loyalty-service/iternal/logger"
 	"github.com/Tomap-Tomap/go-loyalty-service/iternal/parameters"
 	"github.com/Tomap-Tomap/go-loyalty-service/iternal/storage"
+	"github.com/Tomap-Tomap/go-loyalty-service/iternal/tokenworker"
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 func main() {
@@ -25,6 +27,7 @@ func main() {
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
 	defer cancel()
+	eg, egCtx := errgroup.WithContext(ctx)
 
 	conn, err := pgx.Connect(ctx, p.DataBaseURI)
 
@@ -39,12 +42,33 @@ func main() {
 		logger.Log.Fatal("Create storage", zap.Error(err))
 	}
 
+	logger.Log.Info("Create token worker")
+	tw := tokenworker.NewToken(p.SecretKey, p.SecetKeyLife)
 	logger.Log.Info("Create handlers")
-	h := handlers.NewHandlers(*storage)
+	h := handlers.NewHandlers(*storage, *tw)
 	logger.Log.Info("Create mux")
 	mux := handlers.ServiceMux(h)
 
-	if err := http.ListenAndServe(p.RunAddr, mux); err != nil {
+	httpServer := &http.Server{
+		Addr:    p.RunAddr,
+		Handler: mux,
+	}
+	eg.Go(func() error {
+		logger.Log.Info("Run server")
+		err := httpServer.ListenAndServe()
+		if err != nil && err != http.ErrServerClosed {
+			return err
+		}
+
+		return nil
+	})
+
+	eg.Go(func() error {
+		<-egCtx.Done()
+		logger.Log.Info("Stor serve")
+		return httpServer.Shutdown(context.Background())
+	})
+	if err := eg.Wait(); err != nil {
 		logger.Log.Fatal("Problem with working server", zap.Error(err))
 	}
 }

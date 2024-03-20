@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tomap-Tomap/go-loyalty-service/iternal/hasher"
 	"github.com/Tomap-Tomap/go-loyalty-service/iternal/models"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
@@ -69,27 +68,34 @@ func (s *Storage) CreateUser(ctx context.Context, u models.User) error {
 		INSERT INTO users (Id, Login, Password, Salt) VALUES (gen_random_uuid(), $1, $2, $3);
 	`
 
-	hU, err := hasher.GetHashedUser(u)
-
-	if err != nil {
-		return fmt.Errorf("get hashed user: %w", err)
-	}
-
-	_, err = retry2(ctx, s.retryPolicy, func() (pgconn.CommandTag, error) {
-		return s.conn.Exec(ctx, query, hU.Login, hU.Password, hU.Salt)
+	_, err := retry2(ctx, s.retryPolicy, func() (pgconn.CommandTag, error) {
+		return s.conn.Exec(ctx, query, u.Login, u.Password, u.Salt)
 	})
 
 	return err
 }
 
-// func retry(ctx context.Context, rp retryPolicy, fn func() error) error {
-// 	fnWithReturn := func() (struct{}, error) {
-// 		return struct{}{}, fn()
-// 	}
+func (s *Storage) GetUser(ctx context.Context, login string) (*models.User, error) {
+	u := &models.User{}
+	err := retry(ctx, s.retryPolicy, func() error {
+		return s.conn.QueryRow(ctx, "SELECT Login, Password, Salt FROM users WHERE Login = $1", login).Scan(u)
+	})
 
-// 	_, err := retry2(ctx, rp, fnWithReturn)
-// 	return err
-// }
+	if err != nil {
+		return nil, fmt.Errorf("get user %s: %w", login, err)
+	}
+
+	return u, nil
+}
+
+func retry(ctx context.Context, rp retryPolicy, fn func() error) error {
+	fnWithReturn := func() (struct{}, error) {
+		return struct{}{}, fn()
+	}
+
+	_, err := retry2(ctx, rp, fnWithReturn)
+	return err
+}
 
 func retry2[T any](ctx context.Context, rp retryPolicy, fn func() (T, error)) (T, error) {
 	if val1, err := fn(); err == nil || !isonnectionException(err) {
