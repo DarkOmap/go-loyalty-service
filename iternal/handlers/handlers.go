@@ -13,7 +13,6 @@ import (
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"go.uber.org/zap"
 )
 
 type Handlers struct {
@@ -120,11 +119,37 @@ func (h *Handlers) login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	logger.Log.Info("user", zap.String(uDB.Login, uDB.Password))
+	hashedPwd, err := hasher.GetHashPassword(u.Password, uDB.Salt)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if hashedPwd != uDB.Password {
+		http.Error(w, "", http.StatusUnauthorized)
+		return
+	}
+
+	tokenString, err := h.tw.GetToken(u.Login)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	cookie := &http.Cookie{
+		Name:  "token",
+		Value: tokenString,
+	}
+
+	http.SetCookie(w, cookie)
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func ServiceMux(h Handlers) *http.ServeMux {

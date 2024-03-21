@@ -27,3 +27,18 @@ func GetHashedUser(u models.User) (*models.User, error) {
 	u.Password = hex.EncodeToString(dst)
 	return &u, nil
 }
+
+func GetHashPassword(password, salt string) (string, error) {
+	decodeSalt, err := hex.DecodeString(salt)
+
+	if err != nil {
+		return "", fmt.Errorf("decode salt: %w", err)
+	}
+
+	hash := sha256.New()
+	data := append(decodeSalt, password...)
+	hash.Write(data)
+	dst := hash.Sum(nil)
+
+	return hex.EncodeToString(dst), nil
+}
