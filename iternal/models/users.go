@@ -8,7 +8,9 @@ import (
 	"strings"
 
 	"github.com/Tomap-Tomap/go-loyalty-service/iternal/hasher"
+	"github.com/Tomap-Tomap/go-loyalty-service/iternal/logger"
 	"github.com/jackc/pgx/v5"
+	"go.uber.org/zap"
 )
 
 var ErrPWDNotEqual error = fmt.Errorf("passwords not equal")
@@ -26,6 +28,8 @@ func NewUserByRequestBody(body io.ReadCloser) (*User, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read from body: %w", err)
 	}
+
+	logger.Log.Info("parse body", zap.String("body", buf.String()))
 
 	var u User
 	err = u.writeFieldsByJSON(buf.Bytes())

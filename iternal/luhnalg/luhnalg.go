@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+
+	"github.com/Tomap-Tomap/go-loyalty-service/iternal/logger"
+	"go.uber.org/zap"
 )
 
 var ErrInvalidNumber error = fmt.Errorf("invalid order number")
@@ -38,15 +41,17 @@ func GetNumberFromBody(body io.ReadCloser) (int, error) {
 		return 0, fmt.Errorf("invalid body: %w", err)
 	}
 
+	logger.Log.Info("parse body", zap.String("body", buf.String()))
+
 	id, err := strconv.Atoi(buf.String())
 
 	if err != nil {
 		return 0, fmt.Errorf("ivalid parsing: %w", err)
 	}
 
-	validId := CheckNumber(id)
+	validID := CheckNumber(id)
 
-	if !validId {
+	if !validID {
 		return 0, ErrInvalidNumber
 	}
 

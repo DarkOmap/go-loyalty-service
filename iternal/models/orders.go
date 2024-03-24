@@ -9,7 +9,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Tomap-Tomap/go-loyalty-service/iternal/logger"
 	"github.com/jackc/pgx/v5"
+	"go.uber.org/zap"
 )
 
 type Order struct {
@@ -82,6 +84,8 @@ func NewOrderBalanceByRequestBody(body io.ReadCloser) (*OrderBalance, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read from body: %w", err)
 	}
+
+	logger.Log.Info("parse body", zap.String("body", buf.String()))
 
 	var ob OrderBalance
 	err = ob.writeFieldsByJSON(buf.Bytes())
