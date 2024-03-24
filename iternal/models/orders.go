@@ -9,9 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tomap-Tomap/go-loyalty-service/iternal/logger"
 	"github.com/jackc/pgx/v5"
-	"go.uber.org/zap"
 )
 
 type Order struct {
@@ -34,8 +32,11 @@ func (o *Order) ScanRow(rows pgx.Rows) error {
 		case "status":
 			o.Status = values[i].(string)
 		case "accrual":
-			acc := values[i].(float64)
-			o.Accrual = &acc
+			acc := values[i]
+
+			if acc != nil {
+				o.Accrual = acc.(*float64)
+			}
 		case "uploadedat":
 			ua := values[i].(time.Time)
 			o.UploadedAt = &ua
@@ -84,8 +85,6 @@ func NewOrderBalanceByRequestBody(body io.ReadCloser) (*OrderBalance, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read from body: %w", err)
 	}
-
-	logger.Log.Info("parse body", zap.String("body", buf.String()))
 
 	var ob OrderBalance
 	err = ob.writeFieldsByJSON(buf.Bytes())

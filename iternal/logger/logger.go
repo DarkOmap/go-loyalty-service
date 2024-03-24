@@ -1,7 +1,10 @@
 package logger
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -67,10 +70,33 @@ func RequestLogger(h http.Handler) http.Handler {
 	logFn := func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
+		var buf bytes.Buffer
+		_, err := buf.ReadFrom(r.Body)
+
+		body := ""
+		if err != nil {
+			var data map[string]interface{}
+			err := json.Unmarshal(buf.Bytes(), &data)
+
+			if err != nil {
+				if _, ok := data["password"].(string); ok {
+					data["password"] = "********"
+				}
+
+				newBody, err := json.Marshal(data)
+				if err != nil {
+					body = string(newBody)
+				}
+			}
+		}
+
 		Log.Info("Got incoming HTTP request",
 			zap.String("uri", r.RequestURI),
 			zap.String("method", r.Method),
+			zap.String("body", body),
 		)
+
+		r.Body = io.NopCloser(&buf)
 
 		lw := loggingResponseWriter{
 			ResponseWriter: w,
