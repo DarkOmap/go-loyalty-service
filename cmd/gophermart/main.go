@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/Tomap-Tomap/go-loyalty-service/iternal/agent"
+	"github.com/Tomap-Tomap/go-loyalty-service/iternal/client"
 	"github.com/Tomap-Tomap/go-loyalty-service/iternal/handlers"
 	"github.com/Tomap-Tomap/go-loyalty-service/iternal/logger"
 	"github.com/Tomap-Tomap/go-loyalty-service/iternal/parameters"
@@ -48,6 +50,10 @@ func main() {
 	h := handlers.NewHandlers(*storage, *tw)
 	logger.Log.Info("Create mux")
 	mux := handlers.ServiceMux(h)
+	logger.Log.Info("Create client")
+	c := client.NewClient(storage, p.AccrualSystemAddr)
+	logger.Log.Info("Create agent")
+	a := agent.NewAgent(storage, c, p.GetInterval, p.WorkerLimit)
 
 	httpServer := &http.Server{
 		Addr:    p.RunAddr,
@@ -68,6 +74,16 @@ func main() {
 		logger.Log.Info("Stor serve")
 		return httpServer.Shutdown(context.Background())
 	})
+
+	eg.Go(func() error {
+		logger.Log.Info("Run agent")
+		if err := a.Run(egCtx); err != nil {
+			return err
+		}
+
+		return nil
+	})
+
 	if err := eg.Wait(); err != nil {
 		logger.Log.Fatal("Problem with working server", zap.Error(err))
 	}

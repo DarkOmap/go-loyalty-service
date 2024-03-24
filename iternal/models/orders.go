@@ -13,10 +13,10 @@ import (
 )
 
 type Order struct {
-	Number     int64     `json:"number"`
-	Status     string    `json:"status"`
-	Accrual    *float64  `json:"accrual,omitempty"`
-	UploadedAt time.Time `json:"uploaded_at"`
+	Number     int64      `json:"number"`
+	Status     string     `json:"status"`
+	Accrual    *float64   `json:"accrual,omitempty"`
+	UploadedAt *time.Time `json:"uploaded_at"`
 }
 
 func (o *Order) ScanRow(rows pgx.Rows) error {
@@ -35,11 +35,38 @@ func (o *Order) ScanRow(rows pgx.Rows) error {
 			acc := values[i].(float64)
 			o.Accrual = &acc
 		case "uploadedat":
-			o.UploadedAt = values[i].(time.Time)
+			ua := values[i].(time.Time)
+			o.UploadedAt = &ua
 		}
 	}
 
 	return nil
+}
+
+func (o *Order) UnmarshalJSON(data []byte) (err error) {
+	type OrderFromService struct {
+		Order   string   `json:"order"`
+		Status  string   `json:"status"`
+		Accrual *float64 `json:"accrual,omitempty"`
+	}
+
+	ofs := &OrderFromService{}
+
+	if err = json.Unmarshal(data, ofs); err != nil || ofs.Order == "" {
+		err = json.Unmarshal(data, o)
+		return
+	}
+
+	o.Number, err = strconv.ParseInt(ofs.Order, 10, 64)
+	o.Status = ofs.Status
+
+	if ofs.Status == "REGISTERED" {
+		o.Status = "NEW"
+	}
+
+	o.Accrual = ofs.Accrual
+
+	return
 }
 
 type OrderBalance struct {

@@ -13,13 +13,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-const (
-	statusNew = "NEW"
-	// statusProcessing = "PROCESSING"
-	// statusInvalid    = "INVALID"
-	// statusProcessed  = "PROCESSED"
-)
-
 var ErrIDExistForCurUsr error = fmt.Errorf("id exist for current user")
 var ErrIDExistForAnotherUsr error = fmt.Errorf("id exist for another user")
 var ErrNotFoundOrderFoCurUsr error = fmt.Errorf("not found for current user")
@@ -192,7 +185,7 @@ func (s *Storage) AddOrder(ctx context.Context, order int, login string) error {
 	`
 
 	_, err := retry2(ctx, s.retryPolicy, func() (pgconn.CommandTag, error) {
-		return s.conn.Exec(ctx, query, order, login, statusNew)
+		return s.conn.Exec(ctx, query, order, login, StatusNew)
 	})
 
 	var tError *pgconn.PgError
@@ -327,6 +320,66 @@ func (s *Storage) GetWithdrawal(ctx context.Context, login string) ([]models.Ord
 	})
 
 	return orderBalance, err
+}
+
+func (s *Storage) GetNotProcessedOrders(ctx context.Context) ([]int64, error) {
+	query := `
+		SELECT
+			number
+		FROM
+			orders
+		WHERE
+			status NOT IN ($1, $2)
+		ORDER BY
+			uploadedat;
+	`
+
+	numbers, err := retry2(ctx, s.retryPolicy, func() ([]int64, error) {
+		rows, err := s.conn.Query(ctx, query, StatusInvalid, StatusProcessed)
+
+		if err != nil {
+			return nil, err
+		}
+
+		numbers := make([]int64, 0)
+
+		defer rows.Close()
+
+		for rows.Next() {
+			var n int64
+			err := rows.Scan(&n)
+
+			if err != nil {
+				return nil, err
+			}
+
+			numbers = append(numbers, n)
+		}
+
+		return numbers, nil
+	})
+
+	return numbers, err
+}
+
+func (s *Storage) UpdateOrder(ctx context.Context, o models.Order) error {
+	query := `
+		WITH t AS (
+			UPDATE orders
+			SET status = $1,
+				accrual = $2
+			WHERE number = $3;
+			RETURNING *
+		)
+		INSERT INTO balances (login, order_number, sum)
+		SELECT t.login, t.number, t.accrual FROM t;
+	`
+
+	_, err := retry2(ctx, s.retryPolicy, func() (pgconn.CommandTag, error) {
+		return s.conn.Exec(ctx, query, o.Status, o.Accrual, o.Number)
+	})
+
+	return err
 }
 
 func retry(ctx context.Context, rp retryPolicy, fn func() error) error {
