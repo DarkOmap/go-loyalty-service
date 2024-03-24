@@ -201,6 +201,13 @@ func (h *Handlers) withdrawal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	luhnCheck := luhnalg.CheckNumber(int(ob.Order))
+
+	if !luhnCheck {
+		http.Error(w, "invalid order", http.StatusUnprocessableEntity)
+		return
+	}
+
 	login := r.Header.Get("login")
 	err = h.storage.DoWithdrawal(r.Context(), login, *ob)
 

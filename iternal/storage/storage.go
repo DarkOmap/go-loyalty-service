@@ -268,22 +268,39 @@ func (s *Storage) GetBalance(ctx context.Context, login string) (*models.UserBal
 }
 
 func (s *Storage) DoWithdrawal(ctx context.Context, login string, ob models.OrderBalance) error {
-	query := `
+	queryOrders := `
+		INSERT INTO orders (Number, Login, Status)
+			VALUES ($1, $2, $3)
+		ON CONFLICT (Number) DO NOTHING;	
+	`
+	queryBalances := `
 		INSERT INTO balances (Login, Order_number, Sum)
 			VALUES ($1, $2, $3)
 	`
-	_, err := retry2(ctx, s.retryPolicy, func() (pgconn.CommandTag, error) {
-		return s.conn.Exec(ctx, query, login, ob.Order, -ob.Sum)
+	err := pgx.BeginFunc(ctx, s.conn, func(tx pgx.Tx) error {
+		_, err := retry2(ctx, s.retryPolicy, func() (pgconn.CommandTag, error) {
+			return s.conn.Exec(ctx, queryOrders, ob.Order, login, StatusNew)
+		})
+
+		if err != nil {
+			return err
+		}
+
+		_, err = retry2(ctx, s.retryPolicy, func() (pgconn.CommandTag, error) {
+			return s.conn.Exec(ctx, queryBalances, login, ob.Order, -ob.Sum)
+		})
+
+		var tError *pgconn.PgError
+		if errors.As(err, &tError) && tError.Message == "not found for current user" {
+			return ErrNotFoundOrderFoCurUsr
+		}
+
+		if errors.As(err, &tError) && tError.Message == "insufficient funds" {
+			return ErrInsufficientFunds
+		}
+
+		return nil
 	})
-
-	var tError *pgconn.PgError
-	if errors.As(err, &tError) && tError.Message == "not found for current user" {
-		return ErrNotFoundOrderFoCurUsr
-	}
-
-	if errors.As(err, &tError) && tError.Message == "insufficient funds" {
-		return ErrInsufficientFunds
-	}
 
 	return err
 }
