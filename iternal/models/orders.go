@@ -72,6 +72,20 @@ func (o *Order) UnmarshalJSON(data []byte) (err error) {
 	return
 }
 
+func (o Order) MarshalJSON() ([]byte, error) {
+	type OrderAlias Order
+
+	aliasOrder := struct {
+		OrderAlias
+		Number string `json:"number"`
+	}{
+		OrderAlias: OrderAlias(o),
+		Number:     strconv.Itoa(int(o.Number)),
+	}
+
+	return json.Marshal(aliasOrder)
+}
+
 type OrderBalance struct {
 	Order       int64      `json:"order"`
 	Sum         float64    `json:"sum"`
