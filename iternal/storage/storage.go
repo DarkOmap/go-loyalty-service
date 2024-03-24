@@ -368,7 +368,7 @@ func (s *Storage) UpdateOrder(ctx context.Context, o models.Order) error {
 			UPDATE orders
 			SET status = $1,
 				accrual = $2
-			WHERE number = $3;
+			WHERE number = $3
 			RETURNING *
 		)
 		INSERT INTO balances (login, order_number, sum)
