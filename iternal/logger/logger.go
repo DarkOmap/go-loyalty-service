@@ -74,17 +74,18 @@ func RequestLogger(h http.Handler) http.Handler {
 		_, err := buf.ReadFrom(r.Body)
 
 		body := ""
-		if err != nil {
+		if err == nil {
+			body = buf.String()
 			var data map[string]interface{}
 			err := json.Unmarshal(buf.Bytes(), &data)
 
-			if err != nil {
+			if err == nil {
 				if _, ok := data["password"].(string); ok {
 					data["password"] = "********"
 				}
 
 				newBody, err := json.Marshal(data)
-				if err != nil {
+				if err == nil {
 					body = string(newBody)
 				}
 			}
