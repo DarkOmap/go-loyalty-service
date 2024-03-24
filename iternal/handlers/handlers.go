@@ -60,6 +60,8 @@ func (h *Handlers) register(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) login(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Type", "text/plain")
+	w.Header().Add("Content-Type", "charset=utf-8")
 	u, err := models.NewUserByRequestBody(r.Body)
 
 	if err != nil {
@@ -102,6 +104,8 @@ func (h *Handlers) login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) ordersPost(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Type", "text/plain")
+	w.Header().Add("Content-Type", "charset=utf-8")
 	id, err := luhnalg.GetNumberFromBody(r.Body)
 
 	if errors.Is(err, luhnalg.ErrInvalidNumber) {
@@ -138,6 +142,8 @@ func (h *Handlers) ordersPost(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) ordersGet(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Type", "application/json")
+	w.Header().Add("Content-Type", "charset=utf-8")
 	login := r.Header.Get("login")
 
 	orders, err := h.storage.GetOrders(r.Context(), login)
@@ -164,6 +170,8 @@ func (h *Handlers) ordersGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) balancesGet(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Type", "application/json")
+	w.Header().Add("Content-Type", "charset=utf-8")
 	login := r.Header.Get("login")
 
 	orders, err := h.storage.GetBalance(r.Context(), login)
