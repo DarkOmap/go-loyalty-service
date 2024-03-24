@@ -49,6 +49,7 @@ func (a *Agent) Run(ctx context.Context) error {
 }
 
 func (a *Agent) processingOrders(ctx context.Context, jobs chan<- func() error) error {
+	logger.Log.Info("Get orders from db")
 	numbers, err := a.s.GetNotProcessedOrders(ctx)
 
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -64,12 +65,14 @@ func (a *Agent) processingOrders(ctx context.Context, jobs chan<- func() error) 
 		jobs <- func() error {
 			wg.Add(1)
 			defer wg.Done()
+			logger.Log.Info("Get order from service")
 			o, err := a.c.GetOrder(ctx, val)
 
 			if err != nil {
 				return err
 			}
 
+			logger.Log.Info("Update order from service")
 			err = a.s.UpdateOrder(ctx, *o)
 
 			if err != nil {
