@@ -105,8 +105,11 @@ func (ub *UserBalance) ScanRow(rows pgx.Rows) error {
 		case "current":
 			ub.Current = values[i].(float64)
 		case "withdrawn":
-			wd := values[i].(float64)
-			ub.Withdrawn = &wd
+			wd := values[i]
+			if wd != nil {
+				wd := wd.(float64)
+				ub.Withdrawn = &wd
+			}
 		}
 	}
 
