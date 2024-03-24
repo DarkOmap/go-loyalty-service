@@ -24,7 +24,7 @@ func ParseFlags() (p Parameters) {
 		"d",
 		"host=localhost user=test password=test dbname=loyaltyservice sslmode=disable",
 		"connection string to database")
-	f.StringVar(&p.AccrualSystemAddr, "r", "localhost:8080", "address and port to accrual system")
+	f.StringVar(&p.AccrualSystemAddr, "r", "http://localhost:8080", "address and port to accrual system")
 	f.StringVar(&p.SecretKey, "k", "secret", "secret key for jwt")
 	var skLife uint
 	f.UintVar(&skLife, "kl", 3, "secret key life in hours")

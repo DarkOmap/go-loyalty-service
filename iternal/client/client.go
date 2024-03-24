@@ -50,7 +50,7 @@ func (c *Client) GetOrder(ctx context.Context, number int64) (*models.Order, err
 	req := c.restyClient.R().
 		SetHeader("Content-Encoding", "gzip").
 		SetContext(ctx)
-	resp, err := req.Get("http://" + c.addr + "/api/orders/" + numberStr)
+	resp, err := req.Get(c.addr + "/api/orders/" + numberStr)
 
 	if err != nil {
 		return nil, fmt.Errorf("get order: %w", err)
