@@ -35,7 +35,8 @@ func (o *Order) ScanRow(rows pgx.Rows) error {
 			acc := values[i]
 
 			if acc != nil {
-				o.Accrual = acc.(*float64)
+				acc := acc.(float64)
+				o.Accrual = &acc
 			}
 		case "uploadedat":
 			ua := values[i].(time.Time)
