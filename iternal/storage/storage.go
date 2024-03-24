@@ -6,11 +6,24 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Tomap-Tomap/go-loyalty-service/iternal/hasher"
 	"github.com/Tomap-Tomap/go-loyalty-service/iternal/models"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
+
+const (
+	statusNew = "NEW"
+	// statusProcessing = "PROCESSING"
+	// statusInvalid    = "INVALID"
+	// statusProcessed  = "PROCESSED"
+)
+
+var ErrIDExistForCurUsr error = fmt.Errorf("id exist for current user")
+var ErrIDExistForAnotherUsr error = fmt.Errorf("id exist for another user")
+var ErrNotFoundOrderFoCurUsr error = fmt.Errorf("not found for current user")
+var ErrInsufficientFunds error = fmt.Errorf("insufficient funds")
 
 type retryPolicy struct {
 	retryCount int
@@ -40,14 +53,68 @@ func (s *Storage) createTables() error {
 
 	createUserQuery := `
 		CREATE TABLE IF NOT EXISTS users (
-			Id UUID PRIMARY KEY,
-			Login VARCHAR(150) UNIQUE,
+			Login VARCHAR(150) PRIMARY KEY,
 			Password CHAR(64),
 			Salt VARCHAR(150)
 		);
-		CREATE UNIQUE INDEX IF NOT EXISTS user_idx ON users (Login);
 	`
 
+	createStatusQuery := `
+		CREATE TABLE IF NOT EXISTS statuses (
+			Name VARCHAR(50) PRIMARY KEY
+		);
+		INSERT INTO statuses VALUES ('NEW'), ('PROCESSING'), ('INVALID'), ('PROCESSED')
+			ON CONFLICT (Name) DO NOTHING;
+	`
+
+	createOrdersQuery := `
+		CREATE TABLE IF NOT EXISTS orders (
+			Number BIGINT PRIMARY KEY,
+			Login VARCHAR(150) REFERENCES users(Login),
+			Status VARCHAR(50) REFERENCES statuses(Name),
+			UploadedAt TIMESTAMP WITH TIME ZONE,
+			Accrual DOUBLE PRECISION
+		);
+		CREATE INDEX IF NOT EXISTS uploaded_at_idx ON orders (UploadedAt);
+		CREATE OR REPLACE FUNCTION orders_stamp() RETURNS trigger AS $orders_stamp$
+			BEGIN
+				NEW.UploadedAt := current_timestamp;
+				RETURN NEW;
+			END;
+		$orders_stamp$ LANGUAGE plpgsql;
+		CREATE OR REPLACE TRIGGER orders_stamp BEFORE INSERT OR UPDATE ON orders
+			FOR EACH ROW EXECUTE PROCEDURE orders_stamp();
+	`
+
+	createBalanceQuery := `
+		CREATE TABLE IF NOT EXISTS balances (
+			Login VARCHAR(150) REFERENCES users(Login),
+			Order_number BIGINT REFERENCES orders(Number),
+			ProcessedAt TIMESTAMP WITH TIME ZONE,
+			Sum DOUBLE PRECISION
+		);
+		CREATE INDEX IF NOT EXISTS processed_at_idx ON balances (ProcessedAt);
+		CREATE OR REPLACE FUNCTION balances_stamp() RETURNS trigger AS $balances_stamp$
+			DECLARE
+				total_balance DOUBLE PRECISION;
+			BEGIN
+				IF (SELECT Number FROM orders WHERE login = NEW.Login and Number = NEW.Order_number) IS NULL THEN
+					RAISE EXCEPTION 'not found for current user';
+				END IF;
+
+				SELECT Sum INTO total_balance FROM balances WHERE Login = NEW.Login FOR UPDATE;
+
+				IF (total_balance IS NULL AND NEW.SUM < 0) OR (SELECT SUM(Sum) FROM balances WHERE Login = NEW.Login) + NEW.SUM < 0 THEN
+					RAISE EXCEPTION 'insufficient funds';
+				END IF;	
+
+				NEW.ProcessedAt := current_timestamp;
+				RETURN NEW;
+			END;
+		$balances_stamp$ LANGUAGE plpgsql;
+		CREATE OR REPLACE TRIGGER balances_stamp BEFORE INSERT OR UPDATE ON balances
+			FOR EACH ROW EXECUTE PROCEDURE balances_stamp();
+	`
 	err := pgx.BeginFunc(ctx, s.conn, func(tx pgx.Tx) error {
 		_, err := retry2(ctx, s.retryPolicy, func() (pgconn.CommandTag, error) {
 			return s.conn.Exec(ctx, createUserQuery)
@@ -55,6 +122,30 @@ func (s *Storage) createTables() error {
 
 		if err != nil {
 			return fmt.Errorf("create users table: %w", err)
+		}
+
+		_, err = retry2(ctx, s.retryPolicy, func() (pgconn.CommandTag, error) {
+			return s.conn.Exec(ctx, createStatusQuery)
+		})
+
+		if err != nil {
+			return fmt.Errorf("create statuses table: %w", err)
+		}
+
+		_, err = retry2(ctx, s.retryPolicy, func() (pgconn.CommandTag, error) {
+			return s.conn.Exec(ctx, createOrdersQuery)
+		})
+
+		if err != nil {
+			return fmt.Errorf("create orders table: %w", err)
+		}
+
+		_, err = retry2(ctx, s.retryPolicy, func() (pgconn.CommandTag, error) {
+			return s.conn.Exec(ctx, createBalanceQuery)
+		})
+
+		if err != nil {
+			return fmt.Errorf("create balances table: %w", err)
 		}
 
 		return nil
@@ -65,11 +156,17 @@ func (s *Storage) createTables() error {
 
 func (s *Storage) CreateUser(ctx context.Context, u models.User) error {
 	query := `
-		INSERT INTO users (Id, Login, Password, Salt) VALUES (gen_random_uuid(), $1, $2, $3);
+		INSERT INTO users (Login, Password, Salt) VALUES ($1, $2, $3);
 	`
 
-	_, err := retry2(ctx, s.retryPolicy, func() (pgconn.CommandTag, error) {
-		return s.conn.Exec(ctx, query, u.Login, u.Password, u.Salt)
+	sp, err := hasher.NewSaltPassword(u.Password)
+
+	if err != nil {
+		return fmt.Errorf("generate password hash: %w", err)
+	}
+
+	_, err = retry2(ctx, s.retryPolicy, func() (pgconn.CommandTag, error) {
+		return s.conn.Exec(ctx, query, u.Login, sp.Password, sp.Salt)
 	})
 
 	return err
@@ -86,6 +183,150 @@ func (s *Storage) GetUser(ctx context.Context, login string) (*models.User, erro
 	}
 
 	return u, nil
+}
+
+func (s *Storage) AddOrder(ctx context.Context, order int, login string) error {
+	query := `
+		INSERT INTO orders (Number, Login, Status)
+			VALUES ($1, $2, $3)
+	`
+
+	_, err := retry2(ctx, s.retryPolicy, func() (pgconn.CommandTag, error) {
+		return s.conn.Exec(ctx, query, order, login, statusNew)
+	})
+
+	var tError *pgconn.PgError
+	if errors.As(err, &tError) && tError.Code == pgerrcode.UniqueViolation {
+		var l string
+		err := retry(ctx, s.retryPolicy, func() error {
+			return s.conn.QueryRow(ctx, "SELECT Login FROM orders WHERE Number = $1", order).Scan(&l)
+		})
+
+		if err != nil {
+			return err
+		}
+
+		if l == login {
+			return ErrIDExistForCurUsr
+		}
+
+		return ErrIDExistForAnotherUsr
+	}
+
+	return err
+}
+
+func (s *Storage) GetOrders(ctx context.Context, login string) ([]models.Order, error) {
+	query := `
+		SELECT * FROM orders
+		WHERE Login = $1
+		ORDER BY UploadedAt
+	`
+	orders, err := retry2(ctx, s.retryPolicy, func() ([]models.Order, error) {
+		rows, err := s.conn.Query(ctx, query, login)
+
+		if err != nil {
+			return nil, err
+		}
+
+		orders := make([]models.Order, 0)
+
+		defer rows.Close()
+
+		for rows.Next() {
+			var o models.Order
+			err := rows.Scan(&o)
+
+			if err != nil {
+				return nil, err
+			}
+
+			orders = append(orders, o)
+		}
+
+		return orders, nil
+	})
+
+	return orders, err
+}
+
+func (s *Storage) GetBalance(ctx context.Context, login string) (*models.UserBalance, error) {
+	query := `
+		SELECT cur_sum.Current, withdrawn_sum.Withdrawn
+			FROM (
+				SELECT Login, SUM(Sum) as Current
+					FROM balances WHERE Login = $1 GROUP BY Login
+			) as cur_sum
+			LEFT JOIN (
+				SELECT Login, SUM(Sum) as Withdrawn
+					FROM balances WHERE Sum < 0 AND LOGIN = $1 GROUP BY Login
+			) as withdrawn_sum ON cur_sum.Login = withdrawn_sum.Login;
+	`
+	var b models.UserBalance
+	err := retry(ctx, s.retryPolicy, func() error {
+		return s.conn.QueryRow(ctx, query, login).Scan(&b)
+	})
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		return &b, nil
+	}
+
+	return &b, err
+}
+
+func (s *Storage) DoWithdrawal(ctx context.Context, login string, ob models.OrderBalance) error {
+	query := `
+		INSERT INTO balances (Login, Order_number, Sum)
+			VALUES ($1, $2, $3)
+	`
+	_, err := retry2(ctx, s.retryPolicy, func() (pgconn.CommandTag, error) {
+		return s.conn.Exec(ctx, query, login, ob.Order, -ob.Sum)
+	})
+
+	var tError *pgconn.PgError
+	if errors.As(err, &tError) && tError.Message == "not found for current user" {
+		return ErrNotFoundOrderFoCurUsr
+	}
+
+	if errors.As(err, &tError) && tError.Message == "insufficient funds" {
+		return ErrInsufficientFunds
+	}
+
+	return err
+}
+
+func (s *Storage) GetWithdrawal(ctx context.Context, login string) ([]models.OrderBalance, error) {
+	query := `
+		SELECT order_number as order, -sum as sum, processedat FROM balances
+		WHERE Login = $1 AND sum < 0
+		ORDER BY processedat
+	`
+	orderBalance, err := retry2(ctx, s.retryPolicy, func() ([]models.OrderBalance, error) {
+		rows, err := s.conn.Query(ctx, query, login)
+
+		if err != nil {
+			return nil, err
+		}
+
+		orderBalance := make([]models.OrderBalance, 0)
+
+		defer rows.Close()
+
+		for rows.Next() {
+			var ob models.OrderBalance
+			err := rows.Scan(&ob)
+
+			if err != nil {
+				return nil, err
+			}
+
+			orderBalance = append(orderBalance, ob)
+		}
+
+		return orderBalance, nil
+	})
+
+	return orderBalance, err
 }
 
 func retry(ctx context.Context, rp retryPolicy, fn func() error) error {

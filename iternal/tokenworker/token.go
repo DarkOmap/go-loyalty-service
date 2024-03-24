@@ -2,6 +2,7 @@ package tokenworker
 
 import (
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -16,7 +17,7 @@ func NewToken(secret string, exp time.Duration) *TokenWorker {
 	return &TokenWorker{secret: secret, exp: exp}
 }
 
-func (t *TokenWorker) GetToken(sub string) (string, error) {
+func (t *TokenWorker) getToken(sub string) (string, error) {
 	token := jwt.NewWithClaims(
 		jwt.SigningMethodHS256,
 		jwt.RegisteredClaims{
@@ -33,8 +34,9 @@ func (t *TokenWorker) GetToken(sub string) (string, error) {
 	return tokenString, nil
 }
 
-func (t *TokenWorker) TokenValidation(token string) bool {
-	jwtToken, err := jwt.Parse(token, func(jwtT *jwt.Token) (interface{}, error) {
+func (t *TokenWorker) GetSubFromToken(token string) (string, bool) {
+	claims := &jwt.RegisteredClaims{}
+	jwtToken, err := jwt.ParseWithClaims(token, claims, func(jwtT *jwt.Token) (interface{}, error) {
 		if _, ok := jwtT.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", jwtT.Header["alg"])
 		}
@@ -43,51 +45,52 @@ func (t *TokenWorker) TokenValidation(token string) bool {
 	})
 
 	if err != nil {
-		return false
+		return "", false
 	}
 
 	if !jwtToken.Valid {
-		return false
+		return "", false
 	}
 
-	return true
+	return claims.Subject, true
 }
 
-// func (t *TokenWorker) RequestToken(h http.Handler) http.Handler {
-// 	logFn := func(w http.ResponseWriter, r *http.Request) {
-// 		tokenCookie, err := r.Cookie("token")
+func (t *TokenWorker) WriteTokenInCookie(w http.ResponseWriter, login string) error {
+	tokenString, err := t.getToken(login)
 
-// 		if err != nil {
-// 			h.ServeHTTP(w, r)
-// 		}
+	if err != nil {
+		return fmt.Errorf("get token: %w", err)
+	}
 
-// 		tokenValid := t.TokenValidation(tokenCookie.Value)
+	cookie := &http.Cookie{
+		Name:  "token",
+		Value: tokenString,
+	}
 
-// 		if !tokenValid{}
-// 		start := time.Now()
+	http.SetCookie(w, cookie)
 
-// 		Log.Info("Got incoming HTTP request",
-// 			zap.String("uri", r.RequestURI),
-// 			zap.String("method", r.Method),
-// 		)
+	return nil
+}
 
-// 		lw := loggingResponseWriter{
-// 			ResponseWriter: w,
-// 		}
+func (t *TokenWorker) RequestToken(h http.Handler) http.Handler {
+	logFn := func(w http.ResponseWriter, r *http.Request) {
+		tokenCookie, err := r.Cookie("token")
 
-// 		defer func() {
-// 			duration := time.Since(start)
+		if err != nil || tokenCookie == nil {
+			http.Error(w, "invalid token", http.StatusUnauthorized)
+			return
+		}
 
-// 			Log.Info("Sending HTTP response",
-// 				zap.String("duration", duration.String()),
-// 				zap.Int("status", lw.code),
-// 				zap.Int("size", lw.bytes),
-// 				zap.String("error", lw.error),
-// 			)
-// 		}()
+		sub, tokenValid := t.GetSubFromToken(tokenCookie.Value)
 
-// 		h.ServeHTTP(&lw, r)
-// 	}
+		if !tokenValid {
+			http.Error(w, "invalid token", http.StatusUnauthorized)
+			return
+		}
 
-// 	return http.HandlerFunc(logFn)
-// }
+		r.Header.Add("login", sub)
+		h.ServeHTTP(w, r)
+	}
+
+	return http.HandlerFunc(logFn)
+}

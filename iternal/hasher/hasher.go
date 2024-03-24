@@ -5,11 +5,14 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-
-	"github.com/Tomap-Tomap/go-loyalty-service/iternal/models"
 )
 
-func GetHashedUser(u models.User) (*models.User, error) {
+type SaltPassword struct {
+	Password string
+	Salt     string
+}
+
+func NewSaltPassword(password string) (*SaltPassword, error) {
 	b := make([]byte, 75)
 
 	_, err := rand.Read(b)
@@ -18,17 +21,19 @@ func GetHashedUser(u models.User) (*models.User, error) {
 		return nil, fmt.Errorf("generate random value: %w", err)
 	}
 
-	u.Salt = hex.EncodeToString(b)
+	var sp SaltPassword
+
+	sp.Salt = hex.EncodeToString(b)
 	hash := sha256.New()
-	data := append(b, u.Password...)
+	data := append(b, password...)
 	hash.Write(data)
 	dst := hash.Sum(nil)
 
-	u.Password = hex.EncodeToString(dst)
-	return &u, nil
+	sp.Password = hex.EncodeToString(dst)
+	return &sp, nil
 }
 
-func GetHashPassword(password, salt string) (string, error) {
+func GetPasswordHash(password, salt string) (string, error) {
 	decodeSalt, err := hex.DecodeString(salt)
 
 	if err != nil {
