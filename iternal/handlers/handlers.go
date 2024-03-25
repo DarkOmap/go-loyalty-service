@@ -201,7 +201,7 @@ func (h *Handlers) withdrawal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	luhnCheck := luhnalg.CheckNumber(int(ob.Order))
+	luhnCheck := luhnalg.CheckNumber([]byte(ob.Order))
 
 	if !luhnCheck {
 		http.Error(w, "invalid order", http.StatusUnprocessableEntity)

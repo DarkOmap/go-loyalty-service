@@ -62,7 +62,7 @@ func (s *Storage) createTables() error {
 
 	createOrdersQuery := `
 		CREATE TABLE IF NOT EXISTS orders (
-			Number BIGINT PRIMARY KEY,
+			Number VARCHAR(150) PRIMARY KEY,
 			Login VARCHAR(150) REFERENCES users(Login),
 			Status VARCHAR(50) REFERENCES statuses(Name),
 			UploadedAt TIMESTAMP WITH TIME ZONE,
@@ -82,7 +82,7 @@ func (s *Storage) createTables() error {
 	createBalanceQuery := `
 		CREATE TABLE IF NOT EXISTS balances (
 			Login VARCHAR(150) REFERENCES users(Login),
-			Order_number BIGINT REFERENCES orders(Number),
+			Order_number VARCHAR(150) REFERENCES orders(Number),
 			ProcessedAt TIMESTAMP WITH TIME ZONE,
 			Sum DOUBLE PRECISION
 		);
@@ -178,7 +178,7 @@ func (s *Storage) GetUser(ctx context.Context, login string) (*models.User, erro
 	return u, nil
 }
 
-func (s *Storage) AddOrder(ctx context.Context, order int, login string) error {
+func (s *Storage) AddOrder(ctx context.Context, order string, login string) error {
 	query := `
 		INSERT INTO orders (Number, Login, Status)
 			VALUES ($1, $2, $3)

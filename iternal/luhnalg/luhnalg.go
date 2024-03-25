@@ -9,13 +9,20 @@ import (
 
 var ErrInvalidNumber error = fmt.Errorf("invalid order number")
 
-func CheckNumber(number int) bool {
-	var sum int
+func CheckNumber(number []byte) bool {
+	var (
+		sum    int
+		parity int = len(number) % 2
+	)
 
-	for i := 0; number != 0; i++ {
-		a := number % 10
+	for idx, val := range number {
+		a, err := strconv.Atoi(string(val))
 
-		if i%2 != 0 {
+		if err != nil {
+			return false
+		}
+
+		if idx%2 == parity {
 			a *= 2
 
 			if a > 9 {
@@ -24,31 +31,24 @@ func CheckNumber(number int) bool {
 		}
 
 		sum += a
-		number /= 10
 	}
 
 	return sum%10 == 0
 }
 
-func GetNumberFromBody(body io.ReadCloser) (int, error) {
+func GetNumberFromBody(body io.ReadCloser) (string, error) {
 	var buf bytes.Buffer
 	_, err := buf.ReadFrom(body)
 
 	if err != nil {
-		return 0, fmt.Errorf("invalid body: %w", err)
+		return "", fmt.Errorf("invalid body: %w", err)
 	}
 
-	id, err := strconv.Atoi(buf.String())
-
-	if err != nil {
-		return 0, fmt.Errorf("ivalid parsing: %w", err)
-	}
-
-	validID := CheckNumber(id)
+	validID := CheckNumber(buf.Bytes())
 
 	if !validID {
-		return 0, ErrInvalidNumber
+		return "", ErrInvalidNumber
 	}
 
-	return id, nil
+	return buf.String(), nil
 }
