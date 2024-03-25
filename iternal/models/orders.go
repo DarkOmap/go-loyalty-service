@@ -149,6 +149,20 @@ func (ob *OrderBalance) UnmarshalJSON(data []byte) (err error) {
 	return
 }
 
+func (ob OrderBalance) MarshalJSON() ([]byte, error) {
+	type OrderBalanceAlias OrderBalance
+
+	aliasOrderBalance := struct {
+		OrderBalanceAlias
+		Order string `json:"order"`
+	}{
+		OrderBalanceAlias: OrderBalanceAlias(ob),
+		Order:             strconv.Itoa(int(ob.Order)),
+	}
+
+	return json.Marshal(aliasOrderBalance)
+}
+
 func (ob *OrderBalance) writeFieldsByJSON(j []byte) error {
 	err := json.Unmarshal(j, ob)
 
