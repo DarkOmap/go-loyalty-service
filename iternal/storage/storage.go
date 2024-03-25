@@ -251,7 +251,7 @@ func (s *Storage) GetBalance(ctx context.Context, login string) (*models.UserBal
 					FROM balances WHERE Login = $1 GROUP BY Login
 			) as cur_sum
 			LEFT JOIN (
-				SELECT Login, SUM(Sum) as Withdrawn
+				SELECT Login, SUM(-Sum) as Withdrawn
 					FROM balances WHERE Sum < 0 AND LOGIN = $1 GROUP BY Login
 			) as withdrawn_sum ON cur_sum.Login = withdrawn_sum.Login;
 	`
