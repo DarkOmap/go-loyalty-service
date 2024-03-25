@@ -12,7 +12,7 @@ import (
 )
 
 type Order struct {
-	Number     string     `json:"number,order"`
+	Number     string     `json:"number"`
 	Status     string     `json:"status"`
 	Accrual    *float64   `json:"accrual,omitempty"`
 	UploadedAt *time.Time `json:"uploaded_at"`
@@ -47,9 +47,27 @@ func (o *Order) ScanRow(rows pgx.Rows) error {
 }
 
 func (o *Order) UnmarshalJSON(data []byte) (err error) {
-	if o.Status == "REGISTERED" {
+	type OrderFromService struct {
+		Order   string   `json:"order"`
+		Status  string   `json:"status"`
+		Accrual *float64 `json:"accrual,omitempty"`
+	}
+
+	ofs := &OrderFromService{}
+
+	if err = json.Unmarshal(data, ofs); err != nil || ofs.Order == "" {
+		err = json.Unmarshal(data, o)
+		return
+	}
+
+	o.Number = ofs.Order
+	o.Status = ofs.Status
+
+	if ofs.Status == "REGISTERED" {
 		o.Status = "NEW"
 	}
+
+	o.Accrual = ofs.Accrual
 
 	return
 }

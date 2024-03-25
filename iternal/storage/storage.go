@@ -339,7 +339,7 @@ func (s *Storage) GetWithdrawal(ctx context.Context, login string) ([]models.Ord
 	return orderBalance, err
 }
 
-func (s *Storage) GetNotProcessedOrders(ctx context.Context) ([]int64, error) {
+func (s *Storage) GetNotProcessedOrders(ctx context.Context) ([]string, error) {
 	query := `
 		SELECT
 			number
@@ -351,19 +351,19 @@ func (s *Storage) GetNotProcessedOrders(ctx context.Context) ([]int64, error) {
 			uploadedat;
 	`
 
-	numbers, err := retry2(ctx, s.retryPolicy, func() ([]int64, error) {
+	numbers, err := retry2(ctx, s.retryPolicy, func() ([]string, error) {
 		rows, err := s.conn.Query(ctx, query, StatusInvalid, StatusProcessed)
 
 		if err != nil {
 			return nil, err
 		}
 
-		numbers := make([]int64, 0)
+		numbers := make([]string, 0)
 
 		defer rows.Close()
 
 		for rows.Next() {
-			var n int64
+			var n string
 			err := rows.Scan(&n)
 
 			if err != nil {

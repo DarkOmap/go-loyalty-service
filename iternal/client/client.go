@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -44,13 +43,11 @@ func NewClient(s *storage.Storage, addr string) *Client {
 	return &Client{addr, client, s}
 }
 
-func (c *Client) GetOrder(ctx context.Context, number int64) (*models.Order, error) {
-	numberStr := strconv.Itoa(int(number))
-
+func (c *Client) GetOrder(ctx context.Context, number string) (*models.Order, error) {
 	req := c.restyClient.R().
 		SetHeader("Content-Encoding", "gzip").
 		SetContext(ctx)
-	resp, err := req.Get(c.addr + "/api/orders/" + numberStr)
+	resp, err := req.Get(c.addr + "/api/orders/" + number)
 
 	if err != nil {
 		return nil, fmt.Errorf("get order: %w", err)

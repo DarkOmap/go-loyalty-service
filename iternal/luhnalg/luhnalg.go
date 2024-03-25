@@ -12,7 +12,7 @@ var ErrInvalidNumber error = fmt.Errorf("invalid order number")
 func CheckNumber(number []byte) bool {
 	var (
 		sum    int
-		parity int = len(number) % 2
+		parity = len(number) % 2
 	)
 
 	for idx, val := range number {
