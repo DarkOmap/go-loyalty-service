@@ -65,8 +65,7 @@ func (s *Storage) createTables() error {
 			Number VARCHAR(150) PRIMARY KEY,
 			Login VARCHAR(150) REFERENCES users(Login),
 			Status VARCHAR(50) REFERENCES statuses(Name),
-			UploadedAt TIMESTAMP WITH TIME ZONE,
-			Accrual DOUBLE PRECISION
+			UploadedAt TIMESTAMP WITH TIME ZONE
 		);
 		CREATE INDEX IF NOT EXISTS uploaded_at_idx ON orders (UploadedAt);
 		CREATE OR REPLACE FUNCTION orders_stamp() RETURNS trigger AS $orders_stamp$
@@ -82,7 +81,7 @@ func (s *Storage) createTables() error {
 	createBalanceQuery := `
 		CREATE TABLE IF NOT EXISTS balances (
 			Login VARCHAR(150) REFERENCES users(Login),
-			Order_number VARCHAR(150) REFERENCES orders(Number),
+			Order_number VARCHAR(150),
 			ProcessedAt TIMESTAMP WITH TIME ZONE,
 			Sum DOUBLE PRECISION
 		);
@@ -91,10 +90,6 @@ func (s *Storage) createTables() error {
 			DECLARE
 				total_balance DOUBLE PRECISION;
 			BEGIN
-				IF (SELECT Number FROM orders WHERE login = NEW.Login and Number = NEW.Order_number) IS NULL THEN
-					RAISE EXCEPTION 'not found for current user';
-				END IF;
-
 				SELECT Sum INTO total_balance FROM balances WHERE Login = NEW.Login FOR UPDATE;
 
 				IF (total_balance IS NULL AND NEW.SUM < 0) OR (SELECT SUM(Sum) FROM balances WHERE Login = NEW.Login) + NEW.SUM < 0 THEN
@@ -211,9 +206,10 @@ func (s *Storage) AddOrder(ctx context.Context, order string, login string) erro
 
 func (s *Storage) GetOrders(ctx context.Context, login string) ([]models.Order, error) {
 	query := `
-		SELECT * FROM orders
-		WHERE Login = $1
-		ORDER BY UploadedAt
+		SELECT o.number, b.sum as accrual, o.uploadedat FROM orders as o
+		LEFT JOIN balances as b ON o.number = b.Order_number
+		WHERE o.Login = $1
+		ORDER BY UploadedAt;
 	`
 	orders, err := retry2(ctx, s.retryPolicy, func() ([]models.Order, error) {
 		rows, err := s.conn.Query(ctx, query, login)
@@ -268,39 +264,22 @@ func (s *Storage) GetBalance(ctx context.Context, login string) (*models.UserBal
 }
 
 func (s *Storage) DoWithdrawal(ctx context.Context, login string, ob models.OrderBalance) error {
-	queryOrders := `
-		INSERT INTO orders (Number, Login, Status)
-			VALUES ($1, $2, $3)
-		ON CONFLICT (Number) DO NOTHING;	
-	`
 	queryBalances := `
 		INSERT INTO balances (Login, Order_number, Sum)
 			VALUES ($1, $2, $3)
 	`
-	err := pgx.BeginFunc(ctx, s.conn, func(tx pgx.Tx) error {
-		_, err := retry2(ctx, s.retryPolicy, func() (pgconn.CommandTag, error) {
-			return s.conn.Exec(ctx, queryOrders, ob.Order, login, StatusNew)
-		})
-
-		if err != nil {
-			return err
-		}
-
-		_, err = retry2(ctx, s.retryPolicy, func() (pgconn.CommandTag, error) {
-			return s.conn.Exec(ctx, queryBalances, login, ob.Order, -ob.Sum)
-		})
-
-		var tError *pgconn.PgError
-		if errors.As(err, &tError) && tError.Message == "not found for current user" {
-			return ErrNotFoundOrderFoCurUsr
-		}
-
-		if errors.As(err, &tError) && tError.Message == "insufficient funds" {
-			return ErrInsufficientFunds
-		}
-
-		return nil
+	_, err := retry2(ctx, s.retryPolicy, func() (pgconn.CommandTag, error) {
+		return s.conn.Exec(ctx, queryBalances, login, ob.Order, -ob.Sum)
 	})
+
+	var tError *pgconn.PgError
+	if errors.As(err, &tError) && tError.Message == "not found for current user" {
+		return ErrNotFoundOrderFoCurUsr
+	}
+
+	if errors.As(err, &tError) && tError.Message == "insufficient funds" {
+		return ErrInsufficientFunds
+	}
 
 	return err
 }
@@ -383,17 +362,16 @@ func (s *Storage) UpdateOrder(ctx context.Context, o models.Order) error {
 	query := `
 		WITH t AS (
 			UPDATE orders
-			SET status = $1,
-				accrual = $2
-			WHERE number = $3
+			SET status = $1
+			WHERE number = $2
 			RETURNING *
 		)
 		INSERT INTO balances (login, order_number, sum)
-		SELECT t.login, t.number, t.accrual FROM t;
+		SELECT t.login, t.number, $3 FROM t;
 	`
 
 	_, err := retry2(ctx, s.retryPolicy, func() (pgconn.CommandTag, error) {
-		return s.conn.Exec(ctx, query, o.Status, o.Accrual, o.Number)
+		return s.conn.Exec(ctx, query, o.Status, o.Number, o.Accrual)
 	})
 
 	return err
