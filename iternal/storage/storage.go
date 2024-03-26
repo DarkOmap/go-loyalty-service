@@ -85,6 +85,7 @@ func (s *Storage) createTables() error {
 			Sum DOUBLE PRECISION
 		);
 		CREATE INDEX IF NOT EXISTS processed_at_idx ON balances (ProcessedAt);
+		CREATE INDEX IF NOT EXISTS order_number_idx ON balances (Order_number);
 		CREATE OR REPLACE FUNCTION balances_stamp() RETURNS trigger AS $balances_stamp$
 			DECLARE
 				total_balance DOUBLE PRECISION;

@@ -89,55 +89,55 @@ func TestOrderBalance_ScanRow(t *testing.T) {
 	})
 }
 
-// func TestOrder_UnMarshalMarshalJSON(t *testing.T) {
-// 	t.Run("test unmarshal marshall with number", func(t *testing.T) {
-// 		curTime := time.Now()
-// 		js := fmt.Sprintf(`
-// 		{
-// 			"number": "test",
-// 			"status": "test",
-// 			"accrual": 1,
-// 			"uploaded_at": "%s"
-// 		}
-// 		`, curTime.Format(time.RFC3339))
+func TestOrder_UnMarshalMarshalJSON(t *testing.T) {
+	t.Run("test unmarshal marshall with number", func(t *testing.T) {
+		curTime := time.Now()
+		js := fmt.Sprintf(`
+		{
+			"number": "test",
+			"status": "test",
+			"accrual": 1,
+			"uploaded_at": "%s"
+		}
+		`, curTime.Format(time.RFC3339))
 
-// 		var o Order
-// 		err := json.Unmarshal([]byte(js), &o)
-// 		require.NoError(t, err)
-// 		r, err := o.MarshalJSON()
+		var o Order
+		err := json.Unmarshal([]byte(js), &o)
+		require.NoError(t, err)
+		r, err := o.MarshalJSON()
 
-// 		require.NoError(t, err)
-// 		require.JSONEq(t, js, string(r))
+		require.NoError(t, err)
+		require.JSONEq(t, js, string(r))
 
-// 	})
+	})
 
-// 	t.Run("test unmarshal marshall with order", func(t *testing.T) {
-// 		js := `
-// 		{
-// 			"order": "test",
-// 			"status": "test",
-// 			"accrual": 1
-// 		}
-// 		`
+	t.Run("test unmarshal marshall with order", func(t *testing.T) {
+		js := `
+		{
+			"order": "test",
+			"status": "test",
+			"accrual": 1
+		}
+		`
 
-// 		var o Order
-// 		err := json.Unmarshal([]byte(js), &o)
-// 		require.NoError(t, err)
-// 		r, err := o.MarshalJSON()
+		var o Order
+		err := json.Unmarshal([]byte(js), &o)
+		require.NoError(t, err)
+		r, err := o.MarshalJSON()
 
-// 		require.NoError(t, err)
-// 		jsEx := `
-// 		{
-// 			"number": "test",
-// 			"status": "test",
-// 			"accrual": 1,
-// 			"uploaded_at":""
-// 		}
-// 		`
-// 		require.JSONEq(t, jsEx, string(r))
+		require.NoError(t, err)
+		jsEx := `
+		{
+			"number": "test",
+			"status": "test",
+			"accrual": 1,
+			"uploaded_at":""
+		}
+		`
+		require.JSONEq(t, jsEx, string(r))
 
-// 	})
-// }
+	})
+}
 
 func TestNewOrderBalanceByRequestBody(t *testing.T) {
 	t.Run("positive test", func(t *testing.T) {

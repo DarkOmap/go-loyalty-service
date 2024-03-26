@@ -46,22 +46,22 @@ func (o *Order) ScanRow(rows pgx.Rows) error {
 	return nil
 }
 
-// func (o Order) MarshalJSON() ([]byte, error) {
-// 	type OrderAlias Order
+func (o Order) MarshalJSON() ([]byte, error) {
+	type OrderAlias Order
 
-// 	aliasOrder := struct {
-// 		OrderAlias
-// 		UploadedAt string `json:"uploaded_at"`
-// 	}{
-// 		OrderAlias: OrderAlias(o),
-// 	}
+	aliasOrder := struct {
+		OrderAlias
+		UploadedAt string `json:"uploaded_at"`
+	}{
+		OrderAlias: OrderAlias(o),
+	}
 
-// 	if o.UploadedAt != nil {
-// 		aliasOrder.UploadedAt = o.UploadedAt.Format(time.RFC3339)
-// 	}
+	if o.UploadedAt != nil {
+		aliasOrder.UploadedAt = o.UploadedAt.Format(time.RFC3339)
+	}
 
-// 	return json.Marshal(aliasOrder)
-// }
+	return json.Marshal(aliasOrder)
+}
 
 func (o *Order) UnmarshalJSON(data []byte) (err error) {
 	type OrderFromService struct {
