@@ -74,7 +74,7 @@ func (o *Order) UnmarshalJSON(data []byte) (err error) {
 
 	if err = json.Unmarshal(data, ofs); err != nil || ofs.Order == "" {
 		type OrderAlias Order
-		var oa *OrderAlias = (*OrderAlias)(o)
+		var oa = (*OrderAlias)(o)
 		err = json.Unmarshal(data, oa)
 
 		return

@@ -26,7 +26,7 @@ func (r *loggingResponseWriter) Write(b []byte) (int, error) {
 		r.WriteHeader(http.StatusOK)
 	}
 
-	if r.code != http.StatusOK {
+	if r.code >= 300 {
 		r.error = string(b)
 	}
 
