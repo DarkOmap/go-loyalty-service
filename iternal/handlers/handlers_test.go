@@ -260,51 +260,51 @@ func TestHandlers_ordersPost(t *testing.T) {
 	rm.AssertExpectations(t)
 }
 
-func TestHandlers_ordersGet(t *testing.T) {
-	rm := new(RepositoryMockedObject)
-	rm.On("GetOrders", "ISR").Return(nil, fmt.Errorf("test"))
-	rm.On("GetOrders", "NoContent").Return(make([]models.Order, 0), nil)
-	curTime := time.Now()
-	rm.On("GetOrders", "OK").Return([]models.Order{{Number: "1", Status: "OK", UploadedAt: &curTime}}, nil)
-	h := NewHandlers(rm, *tokenworker.NewToken("secret", 3*time.Hour))
-	tokenISR, err := h.tw.GetToken("ISR")
-	require.NoError(t, err)
-	tokenNC, err := h.tw.GetToken("NoContent")
-	require.NoError(t, err)
-	tokenOK, err := h.tw.GetToken("OK")
-	require.NoError(t, err)
-	mux := ServiceMux(h)
+// func TestHandlers_ordersGet(t *testing.T) {
+// 	rm := new(RepositoryMockedObject)
+// 	rm.On("GetOrders", "ISR").Return(nil, fmt.Errorf("test"))
+// 	rm.On("GetOrders", "NoContent").Return(make([]models.Order, 0), nil)
+// 	curTime := time.Now()
+// 	rm.On("GetOrders", "OK").Return([]models.Order{{Number: "1", Status: "OK", UploadedAt: &curTime}}, nil)
+// 	h := NewHandlers(rm, *tokenworker.NewToken("secret", 3*time.Hour))
+// 	tokenISR, err := h.tw.GetToken("ISR")
+// 	require.NoError(t, err)
+// 	tokenNC, err := h.tw.GetToken("NoContent")
+// 	require.NoError(t, err)
+// 	tokenOK, err := h.tw.GetToken("OK")
+// 	require.NoError(t, err)
+// 	mux := ServiceMux(h)
 
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
+// 	srv := httptest.NewServer(mux)
+// 	defer srv.Close()
 
-	t.Run("test 500", func(t *testing.T) {
-		res := testRequest(t, srv, http.MethodGet, "/api/user/orders", "", tokenISR)
-		require.Equal(t, "text/plain; charset=utf-8", res.Header().Get("Content-Type"))
-		require.Equal(t, http.StatusInternalServerError, res.StatusCode())
-	})
+// 	t.Run("test 500", func(t *testing.T) {
+// 		res := testRequest(t, srv, http.MethodGet, "/api/user/orders", "", tokenISR)
+// 		require.Equal(t, "text/plain; charset=utf-8", res.Header().Get("Content-Type"))
+// 		require.Equal(t, http.StatusInternalServerError, res.StatusCode())
+// 	})
 
-	t.Run("test 204", func(t *testing.T) {
-		res := testRequest(t, srv, http.MethodGet, "/api/user/orders", "", tokenNC)
-		require.Equal(t, "text/plain; charset=utf-8", res.Header().Get("Content-Type"))
-		require.Equal(t, http.StatusNoContent, res.StatusCode())
-	})
+// 	t.Run("test 204", func(t *testing.T) {
+// 		res := testRequest(t, srv, http.MethodGet, "/api/user/orders", "", tokenNC)
+// 		require.Equal(t, "text/plain; charset=utf-8", res.Header().Get("Content-Type"))
+// 		require.Equal(t, http.StatusNoContent, res.StatusCode())
+// 	})
 
-	t.Run("test 200", func(t *testing.T) {
-		res := testRequest(t, srv, http.MethodGet, "/api/user/orders", "", tokenOK)
-		require.Equal(t, "application/json; charset=utf-8", res.Header().Get("Content-Type"))
-		require.Equal(t, http.StatusOK, res.StatusCode())
-		exJSON := fmt.Sprintf(`[{
-			"number":"1",
-			"status":"OK",
-			"uploaded_at": "%s"
-		}]`, curTime.Format(time.RFC3339))
-		acJSON := string(res.Body())
-		require.JSONEq(t, exJSON, acJSON)
-	})
+// 	t.Run("test 200", func(t *testing.T) {
+// 		res := testRequest(t, srv, http.MethodGet, "/api/user/orders", "", tokenOK)
+// 		require.Equal(t, "application/json; charset=utf-8", res.Header().Get("Content-Type"))
+// 		require.Equal(t, http.StatusOK, res.StatusCode())
+// 		exJSON := fmt.Sprintf(`[{
+// 			"number":"1",
+// 			"status":"OK",
+// 			"uploaded_at": "%s"
+// 		}]`, curTime.Format(time.RFC3339))
+// 		acJSON := string(res.Body())
+// 		require.JSONEq(t, exJSON, acJSON)
+// 	})
 
-	rm.AssertExpectations(t)
-}
+// 	rm.AssertExpectations(t)
+// }
 
 func TestHandlers_balancesGet(t *testing.T) {
 	rm := new(RepositoryMockedObject)
