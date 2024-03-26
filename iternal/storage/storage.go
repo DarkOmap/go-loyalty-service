@@ -206,8 +206,8 @@ func (s *Storage) AddOrder(ctx context.Context, order string, login string) erro
 
 func (s *Storage) GetOrders(ctx context.Context, login string) ([]models.Order, error) {
 	query := `
-		SELECT o.number, b.sum as accrual, o.uploadedat FROM orders as o
-		LEFT JOIN balances as b ON o.number = b.Order_number
+		SELECT o.number, b.sum as accrual, o.uploadedat, o.status FROM orders as o
+		LEFT JOIN balances as b ON o.number = b.Order_number AND b.sum > 0
 		WHERE o.Login = $1
 		ORDER BY UploadedAt;
 	`
