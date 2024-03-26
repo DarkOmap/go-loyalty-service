@@ -11,7 +11,6 @@ import (
 
 	"github.com/Tomap-Tomap/go-loyalty-service/iternal/logger"
 	"github.com/Tomap-Tomap/go-loyalty-service/iternal/models"
-	"github.com/Tomap-Tomap/go-loyalty-service/iternal/storage"
 	"github.com/go-resty/resty/v2"
 	"go.uber.org/zap"
 )
@@ -19,10 +18,9 @@ import (
 type Client struct {
 	addr        string
 	restyClient *resty.Client
-	storage     *storage.Storage
 }
 
-func NewClient(s *storage.Storage, addr string) *Client {
+func NewClient(addr string) *Client {
 	client := resty.New().
 		AddRetryCondition(func(r *resty.Response, err error) bool {
 			if r.StatusCode() == http.StatusTooManyRequests {
@@ -39,8 +37,8 @@ func NewClient(s *storage.Storage, addr string) *Client {
 				}
 			}
 			return errors.Is(err, syscall.ECONNREFUSED)
-		})
-	return &Client{addr, client, s}
+		}).SetRetryCount(3)
+	return &Client{addr, client}
 }
 
 func (c *Client) GetOrder(ctx context.Context, number string) (*models.Order, error) {

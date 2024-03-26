@@ -44,6 +44,10 @@ func GetNumberFromBody(body io.ReadCloser) (string, error) {
 		return "", fmt.Errorf("invalid body: %w", err)
 	}
 
+	if buf.String() == "" {
+		return "", fmt.Errorf("empty body: %w", err)
+	}
+
 	validID := CheckNumber(buf.Bytes())
 
 	if !validID {

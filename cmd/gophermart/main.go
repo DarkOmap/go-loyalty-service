@@ -47,11 +47,11 @@ func main() {
 	logger.Log.Info("Create token worker")
 	tw := tokenworker.NewToken(p.SecretKey, p.SecetKeyLife)
 	logger.Log.Info("Create handlers")
-	h := handlers.NewHandlers(*storage, *tw)
+	h := handlers.NewHandlers(storage, *tw)
 	logger.Log.Info("Create mux")
 	mux := handlers.ServiceMux(h)
 	logger.Log.Info("Create client")
-	c := client.NewClient(storage, p.AccrualSystemAddr)
+	c := client.NewClient(p.AccrualSystemAddr)
 	logger.Log.Info("Create agent")
 	a := agent.NewAgent(storage, c, p.GetInterval, p.WorkerLimit)
 

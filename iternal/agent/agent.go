@@ -7,21 +7,29 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Tomap-Tomap/go-loyalty-service/iternal/client"
 	"github.com/Tomap-Tomap/go-loyalty-service/iternal/logger"
-	"github.com/Tomap-Tomap/go-loyalty-service/iternal/storage"
+	"github.com/Tomap-Tomap/go-loyalty-service/iternal/models"
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 )
 
+type Repository interface {
+	GetNotProcessedOrders(ctx context.Context) ([]string, error)
+	UpdateOrder(ctx context.Context, o models.Order) error
+}
+
+type Client interface {
+	GetOrder(ctx context.Context, number string) (*models.Order, error)
+}
+
 type Agent struct {
-	s           *storage.Storage
-	c           *client.Client
+	s           Repository
+	c           Client
 	getInterval uint
 	workerLimit uint
 }
 
-func NewAgent(s *storage.Storage, c *client.Client, getInterval, workerLimit uint) Agent {
+func NewAgent(s Repository, c Client, getInterval, workerLimit uint) Agent {
 	return Agent{s, c, getInterval, workerLimit}
 }
 
@@ -42,6 +50,7 @@ func (a *Agent) Run(ctx context.Context) error {
 				return err
 			}
 		case <-ctx.Done():
+			logger.Log.Info("Stop agent")
 			return nil
 		}
 
@@ -65,25 +74,29 @@ func (a *Agent) processingOrders(ctx context.Context, jobs chan<- func() error) 
 		jobs <- func() error {
 			wg.Add(1)
 			defer wg.Done()
-			logger.Log.Info("Get order from service")
-			o, err := a.c.GetOrder(ctx, val)
-
-			if err != nil {
-				return err
-			}
-
-			logger.Log.Info("Update order from service")
-			err = a.s.UpdateOrder(ctx, *o)
-
-			if err != nil {
-				return err
-			}
-
-			return nil
+			return a.updateOrder(ctx, val)
 		}
 	}
 
 	wg.Wait()
+	return nil
+}
+
+func (a *Agent) updateOrder(ctx context.Context, number string) error {
+	logger.Log.Info("Get order from service")
+	o, err := a.c.GetOrder(ctx, number)
+
+	if err != nil {
+		return err
+	}
+
+	logger.Log.Info("Update order from service")
+	err = a.s.UpdateOrder(ctx, *o)
+
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

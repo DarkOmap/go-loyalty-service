@@ -46,6 +46,23 @@ func (o *Order) ScanRow(rows pgx.Rows) error {
 	return nil
 }
 
+func (o Order) MarshalJSON() ([]byte, error) {
+	type OrderAlias Order
+
+	aliasOrder := struct {
+		OrderAlias
+		UploadedAt string `json:"uploaded_at"`
+	}{
+		OrderAlias: OrderAlias(o),
+	}
+
+	if o.UploadedAt != nil {
+		aliasOrder.UploadedAt = o.UploadedAt.Format(time.RFC3339)
+	}
+
+	return json.Marshal(aliasOrder)
+}
+
 func (o *Order) UnmarshalJSON(data []byte) (err error) {
 	type OrderFromService struct {
 		Order   string   `json:"order"`
@@ -56,7 +73,10 @@ func (o *Order) UnmarshalJSON(data []byte) (err error) {
 	ofs := &OrderFromService{}
 
 	if err = json.Unmarshal(data, ofs); err != nil || ofs.Order == "" {
-		err = json.Unmarshal(data, o)
+		type OrderAlias Order
+		var oa *OrderAlias = (*OrderAlias)(o)
+		err = json.Unmarshal(data, oa)
+
 		return
 	}
 
@@ -64,7 +84,7 @@ func (o *Order) UnmarshalJSON(data []byte) (err error) {
 	o.Status = ofs.Status
 
 	if ofs.Status == "REGISTERED" {
-		o.Status = "NEW"
+		o.Status = StatusNew
 	}
 
 	o.Accrual = ofs.Accrual
@@ -115,6 +135,23 @@ func (ob *OrderBalance) ScanRow(rows pgx.Rows) error {
 	}
 
 	return nil
+}
+
+func (ob OrderBalance) MarshalJSON() ([]byte, error) {
+	type OrderBalanceAlias OrderBalance
+
+	aliasOrderBalance := struct {
+		OrderBalanceAlias
+		ProcessedAt string `json:"processed_at"`
+	}{
+		OrderBalanceAlias: OrderBalanceAlias(ob),
+	}
+
+	if ob.ProcessedAt != nil {
+		aliasOrderBalance.ProcessedAt = ob.ProcessedAt.Format(time.RFC3339)
+	}
+
+	return json.Marshal(aliasOrderBalance)
 }
 
 func (ob *OrderBalance) writeFieldsByJSON(j []byte) error {

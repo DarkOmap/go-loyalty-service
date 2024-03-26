@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -16,17 +17,27 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
+type Repository interface {
+	CreateUser(ctx context.Context, u models.User) error
+	GetUser(ctx context.Context, login string) (*models.User, error)
+	AddOrder(ctx context.Context, order string, login string) error
+	GetOrders(ctx context.Context, login string) ([]models.Order, error)
+	GetBalance(ctx context.Context, login string) (*models.UserBalance, error)
+	DoWithdrawal(ctx context.Context, login string, ob models.OrderBalance) error
+	GetWithdrawal(ctx context.Context, login string) ([]models.OrderBalance, error)
+}
+
 type Handlers struct {
-	storage storage.Storage
+	storage Repository
 	tw      tokenworker.TokenWorker
 }
 
-func NewHandlers(storage storage.Storage, tw tokenworker.TokenWorker) Handlers {
+func NewHandlers(storage Repository, tw tokenworker.TokenWorker) Handlers {
 	return Handlers{storage: storage, tw: tw}
 }
 
 func (h *Handlers) register(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Content-Type", "text/plain")
+	w.Header().Add("Content-Type", "text/plain; charset=utf-8")
 
 	u, err := models.NewUserByRequestBody(r.Body)
 
@@ -59,7 +70,7 @@ func (h *Handlers) register(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) login(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Content-Type", "text/plain")
+	w.Header().Add("Content-Type", "text/plain; charset=utf-8")
 
 	u, err := models.NewUserByRequestBody(r.Body)
 
@@ -103,7 +114,7 @@ func (h *Handlers) login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) ordersPost(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Content-Type", "text/plain")
+	w.Header().Add("Content-Type", "text/plain; charset=utf-8")
 
 	id, err := luhnalg.GetNumberFromBody(r.Body)
 
@@ -141,7 +152,7 @@ func (h *Handlers) ordersPost(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) ordersGet(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Content-Type", "application/json")
+	w.Header().Add("Content-Type", "application/json; charset=utf-8")
 
 	login := r.Header.Get("login")
 
@@ -169,7 +180,7 @@ func (h *Handlers) ordersGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) balancesGet(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Content-Type", "application/json")
+	w.Header().Add("Content-Type", "application/json; charset=utf-8")
 
 	login := r.Header.Get("login")
 
@@ -192,7 +203,7 @@ func (h *Handlers) balancesGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) withdrawal(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Content-Type", "text/plain")
+	w.Header().Add("Content-Type", "text/plain; charset=utf-8")
 
 	ob, err := models.NewOrderBalanceByRequestBody(r.Body)
 
@@ -216,11 +227,6 @@ func (h *Handlers) withdrawal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if errors.Is(err, storage.ErrNotFoundOrderFoCurUsr) {
-		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
-		return
-	}
-
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -230,7 +236,7 @@ func (h *Handlers) withdrawal(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) withdrawalGet(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Content-Type", "application/json")
+	w.Header().Add("Content-Type", "application/json; charset=utf-8")
 
 	login := r.Header.Get("login")
 	ob, err := h.storage.GetWithdrawal(r.Context(), login)

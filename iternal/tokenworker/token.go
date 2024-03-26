@@ -17,7 +17,7 @@ func NewToken(secret string, exp time.Duration) *TokenWorker {
 	return &TokenWorker{secret: secret, exp: exp}
 }
 
-func (t *TokenWorker) getToken(sub string) (string, error) {
+func (t *TokenWorker) GetToken(sub string) (string, error) {
 	token := jwt.NewWithClaims(
 		jwt.SigningMethodHS256,
 		jwt.RegisteredClaims{
@@ -56,7 +56,7 @@ func (t *TokenWorker) GetSubFromToken(token string) (string, bool) {
 }
 
 func (t *TokenWorker) WriteTokenInCookie(w http.ResponseWriter, login string) error {
-	tokenString, err := t.getToken(login)
+	tokenString, err := t.GetToken(login)
 
 	if err != nil {
 		return fmt.Errorf("get token: %w", err)

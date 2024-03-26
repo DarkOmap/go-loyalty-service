@@ -15,7 +15,6 @@ import (
 
 var ErrIDExistForCurUsr error = fmt.Errorf("id exist for current user")
 var ErrIDExistForAnotherUsr error = fmt.Errorf("id exist for another user")
-var ErrNotFoundOrderFoCurUsr error = fmt.Errorf("not found for current user")
 var ErrInsufficientFunds error = fmt.Errorf("insufficient funds")
 
 type retryPolicy struct {
@@ -180,7 +179,7 @@ func (s *Storage) AddOrder(ctx context.Context, order string, login string) erro
 	`
 
 	_, err := retry2(ctx, s.retryPolicy, func() (pgconn.CommandTag, error) {
-		return s.conn.Exec(ctx, query, order, login, StatusNew)
+		return s.conn.Exec(ctx, query, order, login, models.StatusNew)
 	})
 
 	var tError *pgconn.PgError
@@ -273,10 +272,6 @@ func (s *Storage) DoWithdrawal(ctx context.Context, login string, ob models.Orde
 	})
 
 	var tError *pgconn.PgError
-	if errors.As(err, &tError) && tError.Message == "not found for current user" {
-		return ErrNotFoundOrderFoCurUsr
-	}
-
 	if errors.As(err, &tError) && tError.Message == "insufficient funds" {
 		return ErrInsufficientFunds
 	}
@@ -331,7 +326,7 @@ func (s *Storage) GetNotProcessedOrders(ctx context.Context) ([]string, error) {
 	`
 
 	numbers, err := retry2(ctx, s.retryPolicy, func() ([]string, error) {
-		rows, err := s.conn.Query(ctx, query, StatusInvalid, StatusProcessed)
+		rows, err := s.conn.Query(ctx, query, models.StatusInvalid, models.StatusProcessed)
 
 		if err != nil {
 			return nil, err

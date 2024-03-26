@@ -26,11 +26,13 @@ func ParseFlags() (p Parameters) {
 		"connection string to database")
 	f.StringVar(&p.AccrualSystemAddr, "r", "http://localhost:8080", "address and port to accrual system")
 	f.StringVar(&p.SecretKey, "k", "secret", "secret key for jwt")
+
 	var skLife uint
 	f.UintVar(&skLife, "kl", 3, "secret key life in hours")
-	f.Parse(os.Args[1:])
+
 	f.UintVar(&p.GetInterval, "gi", 5, "interval for communicate to accrual system")
 	f.UintVar(&p.WorkerLimit, "wl", 5, "worker limit for communicate to accrual system")
+	f.Parse(os.Args[1:])
 
 	p.SecetKeyLife = time.Hour * time.Duration(skLife)
 
